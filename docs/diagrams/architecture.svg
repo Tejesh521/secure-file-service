@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="720" viewBox="0 0 1180 720" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+  <title>secure-file-service architecture</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#374151"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b91c1c"/>
+    </marker>
+    <style>
+      .box { fill:#ffffff; stroke:#374151; stroke-width:1.5; rx:8; }
+      .zone { fill:#f8fafc; stroke:#94a3b8; stroke-width:1.2; stroke-dasharray:6 4; rx:12; }
+      .zone-title { font-weight:600; fill:#334155; font-size:14px; }
+      .label { fill:#111827; }
+      .muted { fill:#6b7280; font-size:11.5px; }
+      .edge { stroke:#374151; stroke-width:1.5; fill:none; marker-end:url(#arrow); }
+      .edge-public { stroke:#b91c1c; stroke-width:1.5; fill:none; marker-end:url(#arrow-red); }
+      .edge-label { fill:#374151; font-size:11.5px; }
+      .edge-label-public { fill:#b91c1c; font-size:11.5px; }
+      .store { fill:#eef2ff; stroke:#4338ca; stroke-width:1.5; }
+      .ops { fill:#fefce8; stroke:#a16207; stroke-width:1.2; rx:8; }
+    </style>
+  </defs>
+
+  <rect width="1180" height="720" fill="#ffffff"/>
+  <text x="24" y="34" font-size="20" font-weight="700" fill="#111827">secure-file-service · architecture</text>
+  <text x="24" y="54" class="muted">Private uploads · HMAC-signed temporary download links · per-file audit trail. One stateless process, one database, one private disk.</text>
+
+  <!-- Clients -->
+  <rect x="24" y="90" width="200" height="220" class="zone"/>
+  <text x="40" y="112" class="zone-title">Clients</text>
+  <rect x="40" y="130" width="168" height="70" class="box"/>
+  <text x="124" y="158" text-anchor="middle" class="label" font-weight="600">Owner</text>
+  <text x="124" y="178" text-anchor="middle" class="muted">X-API-Key → owner_id</text>
+  <rect x="40" y="220" width="168" height="70" class="box" stroke="#b91c1c"/>
+  <text x="124" y="248" text-anchor="middle" class="label" font-weight="600">Link holder</text>
+  <text x="124" y="268" text-anchor="middle" class="muted">no credentials, just the URL</text>
+
+  <!-- Edge -->
+  <rect x="270" y="90" width="150" height="220" class="zone"/>
+  <text x="286" y="112" class="zone-title">Edge</text>
+  <rect x="286" y="150" width="118" height="110" class="box"/>
+  <text x="345" y="190" text-anchor="middle" class="label" font-weight="600">App Platform</text>
+  <text x="345" y="210" text-anchor="middle" class="muted">ingress · TLS</text>
+  <text x="345" y="226" text-anchor="middle" class="muted">health checks</text>
+
+  <!-- Service -->
+  <rect x="466" y="90" width="430" height="440" class="zone"/>
+  <text x="482" y="112" class="zone-title">FastAPI service (stateless, N replicas)</text>
+
+  <rect x="482" y="130" width="398" height="56" class="box"/>
+  <text x="681" y="152" text-anchor="middle" class="label" font-weight="600">Middleware</text>
+  <text x="681" y="172" text-anchor="middle" class="muted">X-Request-ID · body size limit · access log · Prometheus metrics · error envelope</text>
+
+  <rect x="482" y="206" width="180" height="44" class="box"/>
+  <text x="572" y="233" text-anchor="middle" class="label" font-weight="600">API-key auth</text>
+
+  <rect x="482" y="270" width="180" height="60" class="box"/>
+  <text x="572" y="293" text-anchor="middle" class="label" font-weight="600">UploadFileHandler</text>
+  <text x="572" y="312" text-anchor="middle" class="muted">stream · SHA-256 · atomic rename</text>
+
+  <rect x="482" y="350" width="180" height="60" class="box"/>
+  <text x="572" y="373" text-anchor="middle" class="label" font-weight="600">CreateSignedLinkHandler</text>
+  <text x="572" y="392" text-anchor="middle" class="muted">HMAC-SHA256 · key ring · TTL</text>
+
+  <rect x="482" y="430" width="180" height="60" class="box"/>
+  <text x="572" y="453" text-anchor="middle" class="label" font-weight="600">Queries</text>
+  <text x="572" y="472" text-anchor="middle" class="muted">get · list · audit history</text>
+
+  <rect x="700" y="270" width="180" height="220" class="box" stroke="#b91c1c"/>
+  <text x="790" y="296" text-anchor="middle" class="label" font-weight="600">DownloadService</text>
+  <text x="790" y="316" text-anchor="middle" class="muted">public route, fail-closed:</text>
+  <text x="716" y="344" class="muted">1. verify HMAC signature</text>
+  <text x="716" y="364" class="muted">2. check expiry (exp)</text>
+  <text x="716" y="384" class="muted">3. load metadata</text>
+  <text x="716" y="404" class="muted">4. check file state</text>
+  <text x="716" y="424" class="muted">5. check bytes on disk</text>
+  <text x="716" y="444" class="muted">6. audit file.downloaded</text>
+  <text x="716" y="464" class="muted">7. FileResponse (sendfile)</text>
+  <text x="790" y="484" text-anchor="middle" class="muted" font-style="italic">bad signature never touches DB</text>
+
+  <!-- Layering note -->
+  <rect x="482" y="500" width="398" height="20" fill="none"/>
+  <text x="681" y="514" text-anchor="middle" class="muted">api → application → domain ← infrastructure (ports: FileRepository · AuditRepository · FileStorage · Clock)</text>
+
+  <!-- Data -->
+  <rect x="942" y="90" width="214" height="440" class="zone"/>
+  <text x="958" y="112" class="zone-title">Data</text>
+
+  <path d="M 958 160 a 91 14 0 0 1 182 0 v 120 a 91 14 0 0 1 -182 0 z" class="store"/>
+  <path d="M 958 160 a 91 14 0 0 0 182 0" fill="none" stroke="#4338ca" stroke-width="1.5"/>
+  <text x="1049" y="205" text-anchor="middle" class="label" font-weight="600">PostgreSQL</text>
+  <text x="1049" y="226" text-anchor="middle" class="muted">files (owner_id, sha256, state)</text>
+  <text x="1049" y="244" text-anchor="middle" class="muted">audit_events (actor, request id, ip)</text>
+  <text x="1049" y="262" text-anchor="middle" class="muted">idempotency_key UNIQUE</text>
+
+  <rect x="958" y="340" width="182" height="150" class="store" rx="8"/>
+  <text x="1049" y="372" text-anchor="middle" class="label" font-weight="600">Private storage root</text>
+  <text x="1049" y="394" text-anchor="middle" class="muted">STORAGE_ROOT, mode 0700</text>
+  <text x="1049" y="412" text-anchor="middle" class="muted">&lt;shard&gt;/&lt;uuid&gt; server-generated</text>
+  <text x="1049" y="430" text-anchor="middle" class="muted">never served by path</text>
+  <text x="1049" y="448" text-anchor="middle" class="muted">.tmp/ staging → rename()</text>
+  <text x="1049" y="470" text-anchor="middle" class="muted" font-style="italic">FileStorage port (swap for S3/Spaces)</text>
+
+  <!-- Ops plane -->
+  <rect x="466" y="560" width="690" height="80" class="ops"/>
+  <text x="482" y="584" class="zone-title" fill="#713f12">Operational plane</text>
+  <text x="482" y="606" class="muted">GET /health/live · GET /health/ready (DB + storage) · GET /metrics (Prometheus) · structured JSON logs · optional OpenTelemetry traces</text>
+  <text x="482" y="626" class="muted">X-Request-ID flows into every response, log line and audit row · graceful shutdown · Alembic migrations run before the app starts</text>
+
+  <!-- Edges: clients -> edge -->
+  <path d="M 208 165 L 286 185" class="edge"/>
+  <text x="212" y="158" class="edge-label">POST /v1/files · POST /v1/files/{id}/links · GET /v1/files…</text>
+  <path d="M 208 255 L 286 235" class="edge-public"/>
+  <text x="196" y="300" class="edge-label-public">GET /v1/download/{id}?exp&amp;lid&amp;kid&amp;sig</text>
+
+  <!-- Edge -> middleware -->
+  <path d="M 404 200 L 440 200 L 440 158 L 482 158" class="edge"/>
+
+  <!-- Middleware -> auth -->
+  <path d="M 572 186 L 572 206" class="edge"/>
+  <!-- Middleware -> download (public) -->
+  <path d="M 790 186 L 790 270" class="edge-public"/>
+  <text x="798" y="232" class="edge-label-public">public route</text>
+
+  <!-- Auth -> handlers -->
+  <path d="M 572 250 L 572 270" class="edge"/>
+  <path d="M 662 228 L 680 228 L 680 380 L 662 380" class="edge"/>
+  <path d="M 680 380 L 680 460 L 662 460" class="edge"/>
+
+  <!-- Upload -> storage / db -->
+  <path d="M 662 290 L 958 400" class="edge"/>
+  <text x="720" y="284" class="edge-label">① stream + hash → .tmp → rename</text>
+  <path d="M 662 300 L 700 260 L 958 240" class="edge"/>
+  <text x="722" y="256" class="edge-label">② metadata + audit, one txn</text>
+
+  <!-- Sign -> db -->
+  <path d="M 662 400 L 690 400 L 690 250 L 958 250" class="edge"/>
+  <text x="694" y="266" class="edge-label" transform="translate(0,-4)"></text>
+  <text x="662" y="418" class="edge-label">audit link.generated (same txn)</text>
+
+  <!-- Queries -> db -->
+  <path d="M 662 470 L 690 470 L 690 258 L 958 258" class="edge"/>
+
+  <!-- Download -> db / storage -->
+  <path d="M 880 380 L 958 270" class="edge-public"/>
+  <text x="886" y="336" class="edge-label-public">lookup + audit</text>
+  <path d="M 880 440 L 958 430" class="edge-public"/>
+  <text x="888" y="452" class="edge-label-public">stream bytes</text>
+
+  <!-- Legend -->
+  <text x="24" y="670" class="muted" font-weight="600">Legend</text>
+  <line x1="24" y1="688" x2="64" y2="688" class="edge"/>
+  <text x="72" y="692" class="muted">authenticated owner path</text>
+  <line x1="24" y1="708" x2="64" y2="708" class="edge-public"/>
+  <text x="72" y="712" class="muted">public, signature-gated path</text>
+</svg>

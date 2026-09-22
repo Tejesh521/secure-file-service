@@ -1,0 +1,93 @@
+# DigitalOcean App Platform specification.
+#   doctl apps create --spec .do/app.yaml
+#   doctl apps update <app-id> --spec .do/app.yaml
+#
+# Secrets (SIGNING_KEYS, API_KEYS) are declared as SECRET-typed envs and must be
+# set in the App Platform console or via doctl; the placeholders here are never valid
+# in production because the service refuses to start with development credentials.
+name: secure-file-service
+region: nyc
+
+databases:
+  - name: files-db
+    engine: PG
+    version: "16"
+    production: false        # switch to true (managed cluster) for real traffic
+
+jobs:
+  - name: migrate
+    kind: PRE_DEPLOY         # runs on every deploy before the new service version receives traffic
+    github:
+      repo: YOUR_GITHUB_ORG/secure-file-service
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: Dockerfile
+    source_dir: /
+    run_command: sh -c "python scripts/wait_for_db.py --timeout 120 && alembic upgrade head"
+    instance_size_slug: basic-xxs
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${files-db.DATABASE_URL}?sslmode=require
+
+services:
+  - name: api
+    github:
+      repo: YOUR_GITHUB_ORG/secure-file-service
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: Dockerfile
+    source_dir: /
+    http_port: 8080
+    # Local-disk storage is not shared between instances; keep one until storage moves to Spaces.
+    instance_count: 1
+    instance_size_slug: basic-xs
+    health_check:
+      http_path: /health/ready
+      initial_delay_seconds: 10
+      period_seconds: 10
+      timeout_seconds: 3
+      success_threshold: 1
+      failure_threshold: 3
+    routes:
+      - path: /
+    envs:
+      - key: ENVIRONMENT
+        scope: RUN_TIME
+        value: production
+      - key: LOG_FORMAT
+        scope: RUN_TIME
+        value: json
+      - key: LOG_LEVEL
+        scope: RUN_TIME
+        value: INFO
+      - key: PUBLIC_BASE_URL
+        scope: RUN_TIME
+        value: ${APP_URL}
+      - key: TRUSTED_HOSTS
+        scope: RUN_TIME
+        value: ${APP_DOMAIN}
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${files-db.DATABASE_URL}?sslmode=require
+      - key: STORAGE_ROOT
+        scope: RUN_TIME
+        value: /var/lib/secure-file-service/storage
+      - key: MAX_UPLOAD_BYTES
+        scope: RUN_TIME
+        value: "104857600"
+      - key: SHUTDOWN_TIMEOUT_SECONDS
+        scope: RUN_TIME
+        value: "20"
+      - key: SIGNING_KEYS
+        scope: RUN_TIME
+        type: SECRET
+        value: "REPLACE_ME"     # format: k1:<48+ char secret>  (generate with `make secret`)
+      - key: API_KEYS
+        scope: RUN_TIME
+        type: SECRET
+        value: "REPLACE_ME"     # format: <api key>:<user id>,...
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED

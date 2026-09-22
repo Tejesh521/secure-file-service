@@ -1,0 +1,61 @@
+# Optional Docker-based stack: API (Ubuntu 24.04 image) + PostgreSQL, migrations applied first.
+# Requires a Docker daemon; where none is available use `make local` instead.
+#   make dev        -> docker compose up --build
+#   make smoke      -> python scripts/smoke_test.py http://localhost:8080
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: files
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d files"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build: .
+    command: ["sh", "-c", "python scripts/wait_for_db.py --timeout 60 && alembic upgrade head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/files
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      ENVIRONMENT: development
+      LOG_FORMAT: json
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/files
+      PUBLIC_BASE_URL: http://localhost:8080
+      STORAGE_ROOT: /var/lib/secure-file-service/storage
+      # Development-only credentials; production rejects these values.
+      SIGNING_KEYS: dev:dev-signing-secret-do-not-use-in-production-0123456789
+      API_KEYS: dev-key-alice:alice,dev-key-bob:bob
+    volumes:
+      - storage:/var/lib/secure-file-service/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  pgdata:
+  storage:

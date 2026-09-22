@@ -1,0 +1,38 @@
+flowchart LR
+    subgraph Clients
+        Owner[Owner<br/>X-API-Key]
+        Anyone[Link holder<br/>no credentials]
+    end
+
+    subgraph Edge["DigitalOcean App Platform"]
+        TLS[Ingress / TLS]
+    end
+
+    subgraph API["FastAPI service (stateless)"]
+        MW[Middleware<br/>request id · body limit · access log · metrics]
+        AUTH[API key auth]
+        UP[UploadFileHandler]
+        SIGN[CreateSignedLinkHandler]
+        DL[DownloadService]
+        Q[Queries<br/>get · list · audit]
+    end
+
+    subgraph Data
+        PG[(PostgreSQL<br/>files · audit_events)]
+        FS[/Private storage root<br/>server-generated keys/]
+    end
+
+    Owner -->|POST /v1/files| TLS
+    Owner -->|POST /v1/files/{id}/links| TLS
+    Owner -->|GET /v1/files…| TLS
+    Anyone -->|GET /v1/download/{id}?exp&lid&kid&sig| TLS
+    TLS --> MW --> AUTH
+    AUTH --> UP & SIGN & Q
+    MW -->|public route| DL
+    UP -->|1 stream + hash| FS
+    UP -->|2 metadata + audit, one txn| PG
+    SIGN -->|HMAC-SHA256| SIGN
+    SIGN -->|audit link.generated| PG
+    DL -->|verify sig · check exp| DL
+    DL -->|lookup · audit download| PG
+    DL -->|stream bytes| FS

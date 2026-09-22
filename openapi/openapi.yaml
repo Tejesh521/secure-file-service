@@ -1,0 +1,758 @@
+openapi: 3.1.0
+info:
+  title: Secure File Service
+  description: "\nPrivate file storage with cryptographically signed, time-limited download links.\n\n\
+    * **Owner endpoints** (`/v1/files/*`) require an `X-API-Key` header.\n* **Download endpoint** (`/v1/download/{file_id}`)\
+    \ is public and authenticated solely by the\n  HMAC signature embedded in the URL.\n* Every non-2xx\
+    \ response uses the same `{\"error\": {...}}` envelope and carries `X-Request-ID`.\n"
+  version: 0.1.0
+paths:
+  /health/live:
+    get:
+      tags:
+      - health
+      summary: Liveness probe
+      operationId: live_health_live_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /health/ready:
+    get:
+      tags:
+      - health
+      summary: Readiness probe
+      operationId: ready_health_ready_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /v1/files:
+    post:
+      tags:
+      - files
+      summary: Upload a private file
+      operationId: upload_file_v1_files_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 255
+            pattern: ^[A-Za-z0-9_.:\-]+$
+          - type: 'null'
+          description: Optional client-chosen key making the upload safe to retry.
+          title: Idempotency-Key
+        description: Optional client-chosen key making the upload safe to retry.
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Static API key
+          title: X-Api-Key
+        description: Static API key
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_upload_file_v1_files_post'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found (or not owned by caller)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema: &id001
+                $ref: '#/components/schemas/ErrorResponse'
+        '200':
+          description: Replay of an earlier upload with the same Idempotency-Key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileResponse'
+        '409':
+          description: Idempotency-Key reused with different content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: File exceeds MAX_UPLOAD_BYTES
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags:
+      - files
+      summary: List my files
+      operationId: list_files_v1_files_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: Page size
+          default: 20
+          title: Limit
+        description: Page size
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 1000000
+          minimum: 0
+          description: Items to skip
+          default: 0
+          title: Offset
+        description: Items to skip
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Static API key
+          title: X-Api-Key
+        description: Static API key
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileListResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema: *id001
+  /v1/files/{file_id}:
+    get:
+      tags:
+      - files
+      summary: Get file metadata
+      operationId: get_file_v1_files__file_id__get
+      parameters:
+      - name: file_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: File Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Static API key
+          title: X-Api-Key
+        description: Static API key
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found (or not owned by caller)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema: *id001
+    delete:
+      tags:
+      - files
+      summary: Delete a file (invalidates all signed links)
+      operationId: delete_file_v1_files__file_id__delete
+      parameters:
+      - name: file_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: File Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Static API key
+          title: X-Api-Key
+        description: Static API key
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found (or not owned by caller)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema: *id001
+  /v1/files/{file_id}/links:
+    post:
+      tags:
+      - files
+      summary: Generate a signed download link
+      operationId: create_link_v1_files__file_id__links_post
+      parameters:
+      - name: file_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: File Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Static API key
+          title: X-Api-Key
+        description: Static API key
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/CreateLinkRequest'
+              - type: 'null'
+              title: Body
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedLinkResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found (or not owned by caller)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema: *id001
+        '410':
+          description: File has been deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/files/{file_id}/audit:
+    get:
+      tags:
+      - files
+      summary: List audit events for a file
+      operationId: list_audit_events_v1_files__file_id__audit_get
+      parameters:
+      - name: file_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: File Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: Page size
+          default: 20
+          title: Limit
+        description: Page size
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 1000000
+          minimum: 0
+          description: Items to skip
+          default: 0
+          title: Offset
+        description: Items to skip
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Static API key
+          title: X-Api-Key
+        description: Static API key
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventListResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found (or not owned by caller)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema: *id001
+  /v1/download/{file_id}:
+    get:
+      tags:
+      - download
+      summary: Download a file via a signed link
+      operationId: download_file_v1_download__file_id__get
+      parameters:
+      - name: file_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: File Id
+      - name: exp
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 0
+          description: Expiry as Unix epoch seconds
+          title: Exp
+        description: Expiry as Unix epoch seconds
+      - name: lid
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Link id
+          title: Lid
+        description: Link id
+      - name: kid
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Signing key id
+          title: Kid
+        description: Signing key id
+      - name: sig
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9_\-]{43}$
+          description: URL-safe base64 HMAC-SHA256
+          title: Sig
+        description: URL-safe base64 HMAC-SHA256
+      responses:
+        '200':
+          description: File bytes
+          content:
+            application/octet-stream: {}
+        '403':
+          description: Signature invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: Link expired or file deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema: *id001
+components:
+  schemas:
+    AuditEventListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/AuditEventResponse'
+          type: array
+          title: Items
+        page:
+          $ref: '#/components/schemas/PageMeta'
+      type: object
+      required:
+      - items
+      - page
+      title: AuditEventListResponse
+    AuditEventResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        file_id:
+          type: string
+          title: File Id
+        event_type:
+          $ref: '#/components/schemas/AuditEventType'
+        actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Actor Id
+        link_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Link Id
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+        request_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Request Id
+        client_ip:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Ip
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - file_id
+      - event_type
+      - actor_id
+      - link_id
+      - expires_at
+      - request_id
+      - client_ip
+      - metadata
+      - created_at
+      title: AuditEventResponse
+    AuditEventType:
+      type: string
+      enum:
+      - file.uploaded
+      - link.generated
+      - file.downloaded
+      - file.deleted
+      title: AuditEventType
+    Body_upload_file_v1_files_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+          description: Multipart field named 'file'
+      type: object
+      required:
+      - file
+      title: Body_upload_file_v1_files_post
+    CreateLinkRequest:
+      properties:
+        ttl_seconds:
+          anyOf:
+          - type: integer
+            maximum: 31536000.0
+            minimum: 1.0
+          - type: 'null'
+          title: Ttl Seconds
+          description: Lifetime of the link in seconds. Defaults to DEFAULT_LINK_TTL_SECONDS; capped by
+            MAX_LINK_TTL_SECONDS.
+          examples:
+          - 600
+      additionalProperties: false
+      type: object
+      title: CreateLinkRequest
+    ErrorBody:
+      properties:
+        code:
+          type: string
+          title: Code
+          examples:
+          - VALIDATION_ERROR
+        message:
+          type: string
+          title: Message
+        details:
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+          type: array
+          title: Details
+        request_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Request Id
+      type: object
+      required:
+      - code
+      - message
+      title: ErrorBody
+    ErrorDetail:
+      properties:
+        field:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Field
+        reason:
+          type: string
+          title: Reason
+      type: object
+      required:
+      - reason
+      title: ErrorDetail
+    ErrorResponse:
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+      type: object
+      required:
+      - error
+      title: ErrorResponse
+      description: Single error envelope used by every non-2xx response.
+    FileListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/FileResponse'
+          type: array
+          title: Items
+        page:
+          $ref: '#/components/schemas/PageMeta'
+      type: object
+      required:
+      - items
+      - page
+      title: FileListResponse
+    FileResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        owner_id:
+          type: string
+          title: Owner Id
+        filename:
+          type: string
+          title: Filename
+        content_type:
+          type: string
+          title: Content Type
+        size_bytes:
+          type: integer
+          title: Size Bytes
+        sha256:
+          type: string
+          title: Sha256
+        status:
+          $ref: '#/components/schemas/FileStatus'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        deleted_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Deleted At
+      type: object
+      required:
+      - id
+      - owner_id
+      - filename
+      - content_type
+      - size_bytes
+      - sha256
+      - status
+      - created_at
+      - updated_at
+      title: FileResponse
+    FileStatus:
+      type: string
+      enum:
+      - available
+      - deleted
+      title: FileStatus
+    HealthResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        checks:
+          additionalProperties: true
+          type: object
+          title: Checks
+      type: object
+      required:
+      - status
+      title: HealthResponse
+    PageMeta:
+      properties:
+        limit:
+          type: integer
+          title: Limit
+        offset:
+          type: integer
+          title: Offset
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - limit
+      - offset
+      - total
+      title: PageMeta
+    SignedLinkResponse:
+      properties:
+        link_id:
+          type: string
+          title: Link Id
+        file_id:
+          type: string
+          title: File Id
+        url:
+          type: string
+          title: Url
+        expires_at:
+          type: string
+          format: date-time
+          title: Expires At
+        ttl_seconds:
+          type: integer
+          title: Ttl Seconds
+        key_id:
+          type: string
+          title: Key Id
+      type: object
+      required:
+      - link_id
+      - file_id
+      - url
+      - expires_at
+      - ttl_seconds
+      - key_id
+      title: SignedLinkResponse
