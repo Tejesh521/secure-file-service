@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from app.core.config import Settings, _parse_pairs
+from app.core.config import Settings, _parse_pairs, normalize_database_url
 
 
 def settings(**kwargs: Any) -> Settings:
@@ -101,3 +101,24 @@ def test_bounds_are_enforced() -> None:
         settings(max_upload_bytes=0)
     with pytest.raises(ValueError):
         settings(environment="prod")
+
+
+class TestNormalizeDatabaseUrl:
+    """Managed platforms inject bare postgresql:// URLs; the image only ships psycopg 3."""
+
+    def test_bare_postgresql_scheme_is_pinned_to_psycopg(self) -> None:
+        assert (
+            normalize_database_url("postgresql://u:p@host:25060/db?sslmode=require")
+            == "postgresql+psycopg://u:p@host:25060/db?sslmode=require"
+        )
+
+    def test_legacy_postgres_scheme_is_pinned_to_psycopg(self) -> None:
+        assert normalize_database_url("postgres://u:p@host/db") == "postgresql+psycopg://u:p@host/db"
+
+    def test_explicit_driver_and_other_dialects_are_untouched(self) -> None:
+        assert normalize_database_url("postgresql+psycopg://u:p@h/db") == "postgresql+psycopg://u:p@h/db"
+        assert normalize_database_url("sqlite:///x.db") == "sqlite:///x.db"
+
+    def test_settings_apply_normalization(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h/db")
+        assert Settings().database_url == "postgresql+psycopg://u:p@h/db"

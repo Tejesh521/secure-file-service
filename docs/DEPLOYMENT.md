@@ -137,6 +137,8 @@ and why the highest-value next step is the object-storage adapter described in
 | Symptom | Likely cause | Check |
 |---|---|---|
 | Deploy fails at startup with `ValueError: SIGNING_KEYS must be set…` | Secrets not set | Console env vars; `ENVIRONMENT=production` is doing its job |
+| `doctl apps create` → `400 GitHub user not authenticated` | DigitalOcean account has not authorized GitHub | Authorize under Apps → Create App → GitHub, or replace the `github:` blocks with `git: {repo_clone_url: https://github.com/<org>/<repo>.git, branch: main}` for a public repo (no auto-deploy on push; use `doctl apps create-deployment <app-id>`) |
+| Migrate job dies with `No module named 'psycopg2'` | Platform injected a bare `postgresql://` URL | Fixed by `normalize_database_url` in `app/core/config.py`, which pins the psycopg 3 driver |
 | `/health/ready` 503 `database: unavailable` | DB not reachable / wrong `sslmode` | `DATABASE_URL`, database firewall/trusted sources |
 | `/health/ready` 503 `storage: unavailable` | `STORAGE_ROOT` not writable by uid 10001 | Path and volume permissions |
 | Links point at `http://localhost:8080` | `PUBLIC_BASE_URL` not set | env var |

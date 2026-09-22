@@ -8,6 +8,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from app.core.config import normalize_database_url
 from app.infrastructure.database import models  # noqa: F401  (registers tables)
 from app.infrastructure.database.base import Base
 
@@ -17,7 +18,7 @@ if config.config_file_name is not None:
 
 # Precedence: URL passed programmatically (tests, tooling) > DATABASE_URL > alembic.ini default.
 if url := (config.attributes.get("sqlalchemy.url") or os.environ.get("DATABASE_URL")):
-    config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
+    config.set_main_option("sqlalchemy.url", normalize_database_url(url).replace("%", "%%"))
 
 target_metadata = Base.metadata
 

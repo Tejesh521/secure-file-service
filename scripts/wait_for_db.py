@@ -13,6 +13,8 @@ import time
 
 from sqlalchemy import create_engine, text
 
+from app.core.config import normalize_database_url
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -24,6 +26,7 @@ def main() -> int:
     if not url:
         print("DATABASE_URL is not set", file=sys.stderr)
         return 2
+    url = normalize_database_url(url)
     engine = create_engine(url, connect_args={"connect_timeout": 3} if url.startswith("postgresql") else {})
     deadline = time.monotonic() + args.timeout
     attempt = 0

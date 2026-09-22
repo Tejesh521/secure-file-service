@@ -21,6 +21,20 @@ _DEV_SIGNING_KEYS = "dev:dev-signing-secret-do-not-use-in-production-0123456789"
 _DEV_API_KEYS = "dev-key-alice:alice,dev-key-bob:bob"
 
 
+def normalize_database_url(url: str) -> str:
+    """Pin PostgreSQL URLs to the psycopg 3 driver that ships in the image.
+
+    Managed platforms (DigitalOcean App Platform, Heroku-style add-ons) inject
+    ``postgresql://`` or ``postgres://`` URLs. SQLAlchemy maps that bare scheme to
+    psycopg2, which is not installed, so the process would die with
+    ``ModuleNotFoundError: No module named 'psycopg2'``. Explicit drivers are left alone.
+    """
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix) :]
+    return url
+
+
 def _parse_pairs(raw: str, *, name: str) -> dict[str, str]:
     """Parse ``"a:b,c:d"`` into ``{"a": "b", "c": "d"}``."""
     result: dict[str, str] = {}
@@ -91,6 +105,11 @@ class Settings(BaseSettings):
     @classmethod
     def _strip_trailing_slash(cls, value: str) -> str:
         return value.rstrip("/")
+
+    @field_validator("database_url")
+    @classmethod
+    def _pin_pg_driver(cls, value: str) -> str:
+        return normalize_database_url(value)
 
     @field_validator("log_level")
     @classmethod
