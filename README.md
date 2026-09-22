@@ -8,6 +8,8 @@ signed URL with a time-to-live; anyone holding that URL can download the file un
 without credentials. Every link generation, upload, download and delete is recorded in an audit
 trail the owner can query.
 
+> **Reviewing this codebase?** Start with [docs/README.md](docs/README.md), the master review document: reading order for the code, an invariant-to-test checklist, and the design, operations and decision material from all fifteen topic files condensed into one place.
+
 [![CI](https://github.com/Tejesh521/secure-file-service/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
 
 ---
@@ -43,6 +45,11 @@ trail the owner can query.
 | Owner metadata queries and audit event on every link generation | `GET /v1/files`, `GET /v1/files/{id}`, `GET /v1/files/{id}/audit` |
 | Architecture flow diagram | [below](#architecture) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Validation, tests, CI/CD, documentation | `app/schemas`, `tests/`, `.github/workflows/`, `docs/` |
+
+## Live deployment
+
+Running on DigitalOcean App Platform: <https://secure-file-service-oj6vs.ondigitalocean.app>
+(`/health/ready`, `/docs`). Deployed from `.do/app.yaml`; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Features
 
