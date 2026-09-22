@@ -8,7 +8,7 @@ signed URL with a time-to-live; anyone holding that URL can download the file un
 without credentials. Every link generation, upload, download and delete is recorded in an audit
 trail the owner can query.
 
-[![CI](https://github.com/YOUR_GITHUB_ORG/secure-file-service/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
+[![CI](https://github.com/Tejesh521/secure-file-service/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
 
 ---
 
@@ -164,7 +164,7 @@ Deliberately **not** in version 1: Redis, Celery, Kafka, Kubernetes. See
 This is the path used in the development environment, which has no Docker daemon.
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_ORG/secure-file-service.git
+git clone https://github.com/Tejesh521/secure-file-service.git
 cd secure-file-service
 make install                            # python3 -m venv .venv && pip install -e ".[dev]"
 cp .env.example .env

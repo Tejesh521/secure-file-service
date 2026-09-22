@@ -18,7 +18,7 @@ jobs:
   - name: migrate
     kind: PRE_DEPLOY         # runs on every deploy before the new service version receives traffic
     github:
-      repo: YOUR_GITHUB_ORG/secure-file-service
+      repo: Tejesh521/secure-file-service
       branch: main
       deploy_on_push: true
     dockerfile_path: Dockerfile
@@ -33,7 +33,7 @@ jobs:
 services:
   - name: api
     github:
-      repo: YOUR_GITHUB_ORG/secure-file-service
+      repo: Tejesh521/secure-file-service
       branch: main
       deploy_on_push: true
     dockerfile_path: Dockerfile
