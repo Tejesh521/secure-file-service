@@ -28,7 +28,7 @@ jobs:
     envs:
       - key: DATABASE_URL
         scope: RUN_TIME
-        value: ${files-db.DATABASE_URL}?sslmode=require
+        value: ${files-db.DATABASE_URL}
 
 services:
   - name: api
@@ -69,7 +69,7 @@ services:
         value: ${APP_DOMAIN}
       - key: DATABASE_URL
         scope: RUN_TIME
-        value: ${files-db.DATABASE_URL}?sslmode=require
+        value: ${files-db.DATABASE_URL}
       - key: STORAGE_ROOT
         scope: RUN_TIME
         value: /var/lib/secure-file-service/storage

@@ -58,7 +58,7 @@ Set in `.do/app.yaml` (plain) or the App Platform console (SECRET):
 | `ENVIRONMENT` | `production` (turns on config safety rails) |
 | `PUBLIC_BASE_URL` | `${APP_URL}` (must be `https://`) |
 | `TRUSTED_HOSTS` | `${APP_DOMAIN}` |
-| `DATABASE_URL` | `${files-db.DATABASE_URL}?sslmode=require` |
+| `DATABASE_URL` | `${files-db.DATABASE_URL}` (App Platform already appends `?sslmode=require`; do not add a second one) |
 | `STORAGE_ROOT` | `/var/lib/secure-file-service/storage` |
 | `SIGNING_KEYS` | SECRET, `k1:<48+ chars>`; generate with `make secret` |
 | `API_KEYS` | SECRET, `<key>:<user>,<key>:<user>` |

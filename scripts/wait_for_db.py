@@ -39,7 +39,8 @@ def main() -> int:
             return 0
         except Exception as exc:  # any failure means "not yet"
             if time.monotonic() >= deadline:
-                print(f"database not reachable after {args.timeout}s: {type(exc).__name__}", file=sys.stderr)
+                detail = str(exc).splitlines()[0] if str(exc) else ""
+                print(f"database not reachable after {args.timeout}s: {type(exc).__name__}: {detail}", file=sys.stderr)
                 return 1
             time.sleep(args.interval)
 
