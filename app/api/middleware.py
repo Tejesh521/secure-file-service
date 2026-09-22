@@ -14,6 +14,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from starlette.exceptions import HTTPException
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.logging import request_id_ctx, user_id_ctx
@@ -217,3 +218,25 @@ async def _send_json(send: Send, status: int, code: str, message: str, scope: Sc
 
 SendCallable = Callable[[Message], Awaitable[None]]
 AnyDict = dict[str, Any]
+
+
+class ProbeFriendlyTrustedHostMiddleware(TrustedHostMiddleware):
+    """``TrustedHostMiddleware`` that lets platform health probes through.
+
+    Orchestrators (App Platform, Kubernetes) probe ``/health/*`` with the pod IP as the
+    ``Host`` header, never the public domain, so a strict host allow-list would fail every
+    readiness check and the deploy would never go live. Health endpoints carry no user data,
+    so exempting them costs nothing; every other route keeps the strict check.
+    """
+
+    def __init__(
+        self, app: ASGIApp, allowed_hosts: list[str], exempt_prefixes: tuple[str, ...] = ("/health/",)
+    ) -> None:
+        super().__init__(app, allowed_hosts=allowed_hosts)
+        self._exempt_prefixes = exempt_prefixes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["path"].startswith(self._exempt_prefixes):
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)

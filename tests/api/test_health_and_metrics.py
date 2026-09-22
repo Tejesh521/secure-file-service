@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from tests.conftest import upload
+from tests.conftest import make_settings, upload
 
 
 def test_liveness_has_no_dependencies(client: TestClient) -> None:
@@ -59,3 +60,16 @@ def test_metrics_exposed_with_bounded_route_labels(client: TestClient, alice: di
     assert "files_uploaded_total 1.0" in body
     assert "http_request_duration_seconds_bucket" in body
     assert "db_query_duration_seconds_count" in body
+
+
+def test_probes_bypass_trusted_host_check_but_api_routes_do_not(tmp_path: Path) -> None:
+    """App Platform / Kubernetes probe with the pod IP as Host, never the public domain."""
+    from app.main import create_app
+
+    strict = create_app(make_settings(tmp_path, trusted_hosts="files.test"))
+    with TestClient(strict, base_url="http://10.0.0.7:8080") as probe:
+        assert probe.get("/health/live").status_code == 200
+        assert probe.get("/v1/files").status_code == 400
+    with TestClient(strict, base_url="http://files.test") as public:
+        assert public.get("/health/live").status_code == 200
+        assert public.get("/v1/files").status_code == 401

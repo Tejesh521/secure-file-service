@@ -6,11 +6,15 @@ from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app import __version__
 from app.api.errors import register_exception_handlers
-from app.api.middleware import AccessLogMiddleware, BodySizeLimitMiddleware, RequestIdMiddleware
+from app.api.middleware import (
+    AccessLogMiddleware,
+    BodySizeLimitMiddleware,
+    ProbeFriendlyTrustedHostMiddleware,
+    RequestIdMiddleware,
+)
 from app.api.router import router
 from app.core.config import Settings, get_settings
 from app.core.lifecycle import build_lifespan
@@ -54,7 +58,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             expose_headers=["X-Request-ID", "Location"],
         )
     if settings.trusted_host_list != ["*"]:
-        app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_host_list)
+        app.add_middleware(ProbeFriendlyTrustedHostMiddleware, allowed_hosts=settings.trusted_host_list)
     app.add_middleware(
         BodySizeLimitMiddleware,
         default_limit=settings.max_request_body_bytes,
