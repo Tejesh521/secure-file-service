@@ -23,7 +23,7 @@ jobs:
           cache: pip
       - run: pip install -e ".[dev]"
       - name: pip-audit
-        run: pip-audit --strict --progress-spinner off
+        run: pip-audit --strict --skip-editable --progress-spinner off
 
   static-analysis:
     name: Security lint (ruff S rules)
